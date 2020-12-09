@@ -24,6 +24,7 @@ func StartNewServer() *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(resp http.ResponseWriter, req *http.Request) {
 		resp.Write([]byte("hello，errgroup"))
+		resp.WriteHeader(http.StatusOK)
 		time.Sleep(time.Second)
 	})
 	server := &http.Server{
@@ -41,6 +42,7 @@ func StartNewServer() *http.Server {
 func main() {
 	fmt.Println(time.Now().Format("2006-01-02 01:02:59"), "main start")
 
+	server := &http.Server{}
 	group, ctx := errgroup.WithContext(context.Background())
 	signalQuit := make(chan os.Signal)
 	quit := make(chan int, 1)
@@ -58,7 +60,7 @@ func main() {
 			quit <- 0
 			return errors.New("quit with signal")
 		case <-ctx.Done():
-			return errors.New("exit with cancle")
+			return ctx.Err()
 		}
 	})
 
@@ -69,19 +71,32 @@ func main() {
 				log.Println("panic in group Go func,server shutdown")
 			}
 		}()
-		server := StartNewServer()
-
-		return errors.New("chan quit get struct{}")
+		server = StartNewServer()
+		return nil
+	})
+	group.Go(func() error {
+		defer func() {
+			rec := recover()
+			if rec != nil {
+				log.Println("panic in group Go func,server shutdown")
+			}
+		}()
+		fmt.Println("ctx.Err()", ctx.Err())
 		select {
 		case <-ctx.Done():
+			fmt.Println("server shutdown ctx.Done()")
 			server.Shutdown(ctx)
 			return errors.New("exit with cancle")
 		case <-quit:
 			fmt.Println("server shutdown")
-			server.Shutdown(ctx)
+			err := server.Shutdown(ctx)
+			if err != nil {
+				fmt.Println(err)
+				return err
+			}
+			fmt.Println("server shutdown success")
 			return errors.New("exit with signal")
 		}
-
 	})
 
 	if err := group.Wait(); err != nil {
