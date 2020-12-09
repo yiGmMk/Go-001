@@ -22,7 +22,7 @@ import (
 func StartNewServer() *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(resp http.ResponseWriter, req *http.Request) {
-		resp.Write([]byte("hello"))
+		resp.Write([]byte("hello，errgroup"))
 	})
 	server := &http.Server{
 		Addr:    "0.0.0.0:2048",
@@ -39,6 +39,12 @@ func main() {
 	signalQuit := make(chan os.Signal, 1)
 
 	group.Go(func() error {
+		defer func() {
+			rec := recover()
+			if rec != nil {
+				log.Println("panic in group Go func,quit")
+			}
+		}()
 		signal.Notify(signalQuit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
 		select {
 		case <-ctx.Done():
@@ -52,6 +58,12 @@ func main() {
 	})
 
 	group.Go(func() error {
+		defer func() {
+			rec := recover()
+			if rec != nil {
+				log.Println("panic in group Go func,server shutdown")
+			}
+		}()
 		server := StartNewServer()
 		select {
 		case <-ctx.Done():
@@ -66,6 +78,6 @@ func main() {
 		log.Println("exit")
 		close(signalQuit)
 	}
-	//fmt.Println(ctx.Err())
+	fmt.Println(ctx.Err())
 	fmt.Println("normal quit")
 }
