@@ -4,6 +4,10 @@ package main
   基于 errgroup 实现一个 http server 的启动和关闭 ，
   以及 linux signal 信号的注册和处理，要保证能够 一个退出，全部注销退出。
 */
+
+// 启动server监听端口会阻塞，需在一个goroutine中单独处理，
+// 收到signal后通过channel发送消息给关闭server的chan
+// 在Go中都添加一个ctx.Done()用于接收context cancle的结果并退出errgroup的Go函数
 import (
 	"context"
 	"fmt"
@@ -62,7 +66,7 @@ func main() {
 		signal.Notify(signalQuit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
 		select {
 		case <-signalQuit:
-			fmt.Println("signal,quit")
+			log.Println("signal,quit")
 			quit <- 0
 			return errors.New("quit with signal")
 		case <-ctx.Done():
@@ -74,15 +78,13 @@ func main() {
 		defer func() {
 			rec := recover()
 			if rec != nil {
-				log.Println("panic in group Go func,server shutdown")
+				log.Println("panic in group Go func in Go to start server")
 			}
 		}()
 		go StartNewServer()
 		select {
 		case <-ctx.Done():
-			fmt.Println("server shutdown ctx.Done()")
-			server.Shutdown(ctx)
-			return errors.New("exit with cancle")
+			return ctx.Err()
 		}
 		return nil
 	})
@@ -91,23 +93,23 @@ func main() {
 		defer func() {
 			rec := recover()
 			if rec != nil {
-				log.Println("panic in group Go func,server shutdown")
+				log.Println("panic in group Go func")
 			}
 		}()
 		fmt.Println("ctx.Err()", ctx.Err())
 		select {
 		case <-ctx.Done():
-			fmt.Println("server shutdown ctx.Done()")
+			log.Println("server shutdown ctx.Done()")
 			server.Shutdown(ctx)
 			return errors.New("exit with cancle")
 		case <-quit:
-			fmt.Println("server shutdown")
+			log.Println("server shutdown with msg from quit chan ")
 			err := server.Shutdown(ctx)
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 				return err
 			}
-			fmt.Println("server shutdown success")
+			log.Println("server shutdown success")
 			return errors.New("exit with signal")
 		}
 	})
@@ -115,6 +117,6 @@ func main() {
 	if err := group.Wait(); err != nil {
 		log.Println("exit")
 	}
-	fmt.Println("ctx.Err()", ctx.Err())
-	fmt.Println("normal quit")
+	log.Println("ctx.Err()", ctx.Err())
+	log.Println("normal quit")
 }
