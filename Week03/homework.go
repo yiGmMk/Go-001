@@ -54,8 +54,11 @@ func main() {
 
 	server := &http.Server{}
 	group, ctx := errgroup.WithContext(context.Background())
+
 	signalQuit := make(chan os.Signal)
 	quit := make(chan int, 1)
+
+	//接收信号，受到信号发送数据给quit
 	group.Go(func() error {
 		defer func() {
 			rec := recover()
@@ -74,6 +77,7 @@ func main() {
 		}
 	})
 
+	//启动 server
 	group.Go(func() error {
 		defer func() {
 			rec := recover()
@@ -89,6 +93,7 @@ func main() {
 		return nil
 	})
 
+	//接收quit中数据，收到后关闭server
 	group.Go(func() error {
 		defer func() {
 			rec := recover()
