@@ -21,6 +21,12 @@ import (
 
 // StartNewServer 启动http server
 func StartNewServer() *http.Server {
+	defer func() {
+		rec := recover()
+		if rec != nil {
+			log.Println("panic in StartNewServer")
+		}
+	}()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(resp http.ResponseWriter, req *http.Request) {
 		resp.Write([]byte("hello，errgroup"))
@@ -71,9 +77,16 @@ func main() {
 				log.Println("panic in group Go func,server shutdown")
 			}
 		}()
-		server = StartNewServer()
+		go StartNewServer()
+		select {
+		case <-ctx.Done():
+			fmt.Println("server shutdown ctx.Done()")
+			server.Shutdown(ctx)
+			return errors.New("exit with cancle")
+		}
 		return nil
 	})
+
 	group.Go(func() error {
 		defer func() {
 			rec := recover()
