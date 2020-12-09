@@ -14,7 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
+
 	"golang.org/x/sync/errgroup"
 )
 
@@ -23,12 +24,17 @@ func StartNewServer() *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(resp http.ResponseWriter, req *http.Request) {
 		resp.Write([]byte("hello，errgroup"))
+		time.Sleep(time.Second)
 	})
 	server := &http.Server{
-		Addr:    "0.0.0.0:2048",
+		Addr:    "0.0.0.0:2248",
 		Handler: mux,
 	}
-	server.ListenAndServe()
+	err := server.ListenAndServe()
+	if err != nil {
+		fmt.Println(err)
+		panic("failed to start server")
+	}
 	return server
 }
 
@@ -36,8 +42,8 @@ func main() {
 	fmt.Println(time.Now().Format("2006-01-02 01:02:59"), "main start")
 
 	group, ctx := errgroup.WithContext(context.Background())
-	signalQuit := make(chan os.Signal, 1)
-
+	signalQuit := make(chan os.Signal)
+	quit := make(chan int, 1)
 	group.Go(func() error {
 		defer func() {
 			rec := recover()
@@ -47,13 +53,12 @@ func main() {
 		}()
 		signal.Notify(signalQuit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
 		select {
-		case <-ctx.Done():
-			fmt.Println("done,quit")
-			return errors.New("group err quir")
-
 		case <-signalQuit:
 			fmt.Println("signal,quit")
+			quit <- 0
 			return errors.New("quit with signal")
+		case <-ctx.Done():
+			return errors.New("exit with cancle")
 		}
 	})
 
@@ -65,19 +70,23 @@ func main() {
 			}
 		}()
 		server := StartNewServer()
+
+		return errors.New("chan quit get struct{}")
 		select {
 		case <-ctx.Done():
-			log.Println("server shutdown")
-			return server.Shutdown(context.TODO())
+			server.Shutdown(ctx)
+			return errors.New("exit with cancle")
+		case <-quit:
+			fmt.Println("server shutdown")
+			server.Shutdown(ctx)
+			return errors.New("exit with signal")
 		}
-		return nil
+
 	})
 
 	if err := group.Wait(); err != nil {
-		ctx.Done()
 		log.Println("exit")
-		close(signalQuit)
 	}
-	fmt.Println(ctx.Err())
+	fmt.Println("ctx.Err()", ctx.Err())
 	fmt.Println("normal quit")
 }
