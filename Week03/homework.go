@@ -90,7 +90,6 @@ func main() {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-		return nil
 	})
 
 	//接收quit中数据，收到后关闭server
