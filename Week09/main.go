@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -48,10 +47,12 @@ func main() {
 				log.Println(rec)
 			}
 		}()
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "OK")
+		conn, err := net.Listen("tcp", "127.0.0.1:9999")
+		if err != nil {
+			log.Println(err)
+			return err
 		}
-		http.ListenAndServe("127.0.0.1:9999")
+
 		return nil
 	})
 
