@@ -35,7 +35,7 @@ func main() {
 			log.Println("signal,quit")
 			return errors.New("quit with signal")
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		}
 	})
 
@@ -46,9 +46,9 @@ func main() {
 				log.Println(rec)
 			}
 		}()
-		listen, err := net.Listen("tcp", "127.0.0.1:9999")
+		listen, err := net.Listen("tcp", "127.0.0.1:19999")
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		for {
@@ -69,7 +69,7 @@ func main() {
 					for {
 						select {
 						case <-ctx.Done():
-							return ctx.Err()
+							return errors.WithStack(ctx.Err())
 						default:
 							line, _, err := rd.ReadLine()
 							if err != nil {
@@ -86,18 +86,17 @@ func main() {
 					for {
 						select {
 						case <-ctx.Done():
-							return ctx.Err()
+							return errors.WithStack(ctx.Err())
 						default:
 							line, ok := <-ch
 							if !ok {
 								return nil
 							}
-
 							if len(line) <= 0 {
 								wr.Write([]byte("-----\n"))
 								continue
 							}
-							wr.WriteString("Hello ")
+							wr.WriteString("Replay ")
 							wr.Write(line)
 							wr.WriteString("\n")
 							wr.Flush()
@@ -107,6 +106,7 @@ func main() {
 				})
 			}
 		}
+
 		return errors.New("accept error ")
 	})
 	if err := group.Wait(); err != nil {
